@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Sprechtafel">
+<meta name="theme-color" content="#f4f1ea">
+<title>Sprechtafel</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#f4f1ea;--ink:#1c1c1e;--hl1:#111;--hl2:#ffd400;}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;}
+body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Rounded","Segoe UI",Roboto,sans-serif;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+button{font:inherit;color:inherit}
+#app{display:flex;flex-direction:column;height:100dvh;gap:1.1vmin;
+  padding:max(1.1vmin,env(safe-area-inset-top)) max(1.1vmin,env(safe-area-inset-right)) max(1.1vmin,env(safe-area-inset-bottom)) max(1.1vmin,env(safe-area-inset-left));}
+/* Schnellleiste */
+#quick{display:grid;grid-template-columns:repeat(5,1fr);gap:1.1vmin;height:14vh;flex:0 0 auto}
+.qb{position:relative;overflow:hidden;border-radius:2vmin;display:flex;align-items:center;justify-content:center;gap:1.2vw;
+  font-weight:800;font-size:min(4.4vh,3.2vw);color:#fff;letter-spacing:.02em;text-align:center;line-height:1.05;cursor:pointer;border:0}
+.qb .e{font-size:min(6.5vh,5vw)}
+@media (orientation:portrait){.qb{flex-direction:column;gap:.4vh;font-size:min(2.8vh,3.6vw)}.qb .e{font-size:min(5vh,7vw)}}
+/* Infoleiste */
+#info{display:flex;gap:1.1vmin;height:9.5vh;flex:0 0 auto}
+#home{flex:0 0 26%;border-radius:2vmin;background:#3a3a3c;color:#fff;display:flex;align-items:center;justify-content:center;gap:1vw;
+  font-weight:800;font-size:min(3.8vh,3vw);position:relative;overflow:hidden;cursor:pointer;border:0}
+#home.off{opacity:.25;pointer-events:none}
+#title{flex:1;min-width:0;background:#fff;border-radius:2vmin;display:flex;align-items:center;justify-content:center;padding:0 2vw;
+  font-weight:800;font-size:min(4.4vh,3.6vw);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#title.spell{justify-content:flex-start;font-size:min(5.2vh,4.4vw);letter-spacing:.06em}
+#title.spell::after{content:"|";animation:blink 1s steps(1) infinite;color:#0057ff;margin-left:.1em}
+@keyframes blink{50%{opacity:0}}
+#gear{flex:0 0 9.5vh;border-radius:2vmin;background:#e2ded5;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-size:min(4vh,3.4vw);position:relative;overflow:hidden;cursor:pointer;color:#555}
+#gear small{font-size:min(1.4vh,1.3vw);font-weight:600}
+#gear .prog{background:rgba(0,0,0,.25)}
+/* Raster */
+#grid{flex:1 1 auto;min-height:0;display:grid;gap:1.1vmin;
+  grid-template-columns:repeat(var(--cols,5),minmax(0,1fr));grid-template-rows:repeat(var(--rows,3),minmax(0,1fr));}
+.tile{position:relative;overflow:hidden;border-radius:2.2vmin;background:var(--c,#fff);border:.35vmin solid rgba(0,0,0,.09);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6vh;padding:.8vmin;cursor:pointer;text-align:center;
+  transition:transform .12s ease;}
+.tile .ic{font-size:var(--ic,8vh);line-height:1;white-space:nowrap}
+.tile img.ic{height:calc(var(--ic,8vh)*1.35);width:90%;object-fit:contain;border-radius:1vmin}
+.tile .lb{font-size:var(--lb,2.4vh);font-weight:750;line-height:1.08;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:anywhere}
+.tile.nav{background:#3a3a3c;color:#fff}
+.tile.letter .lb{font-size:var(--lt,6vh);font-weight:800}
+.tile.act{background:#e9e5dc}
+.prog{position:absolute;inset:0;background:rgba(0,87,255,.30);transform:scaleY(0);transform-origin:bottom;pointer-events:none}
+.hl{box-shadow:0 0 0 .8vmin var(--hl1),0 0 0 1.6vmin var(--hl2);transform:scale(1.035);z-index:3}
+@media (hover:hover){body.hover .sel:hover{box-shadow:0 0 0 .6vmin var(--hl1),0 0 0 1.2vmin var(--hl2);z-index:3}}
+.flash{animation:flash .5s ease}
+@keyframes flash{0%{filter:brightness(1.4)}100%{filter:none}}
+/* Großanzeige */
+#overlay{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:3vh;z-index:50;
+  background:var(--c,#fff);padding:4vmin;text-align:center}
+#overlay.open{display:flex}
+#overlay .big{font-size:30vh;line-height:1}
+#overlay img.big{height:42vh;width:auto;max-width:80vw;object-fit:contain;border-radius:3vmin}
+#overlay .trx{font-size:min(5.5vh,4.6vw);font-weight:700;color:#7a3b00;line-height:1.1;max-width:92vw;font-style:italic}
+#overlay .trx:empty{display:none}
+.tile .trl{font-size:calc(var(--lb,2.4vh)*.82);font-weight:600;font-style:italic;color:#7a3b00;line-height:1.05;overflow-wrap:anywhere}
+#overlay .txt{font-size:min(8vh,6.5vw);font-weight:850;line-height:1.1;max-width:92vw}
+#overlay .hint{font-size:2vh;color:#555;position:absolute;bottom:3vh}
+#overlay .bar{position:absolute;left:0;top:0;height:1vh;background:rgba(0,0,0,.25);width:100%;transform-origin:left}
+/* Alarm */
+#alarm{position:fixed;inset:0;display:none;z-index:80;flex-direction:column;align-items:center;justify-content:center;gap:4vh;color:#fff;
+  background:#d40000;animation:pulse .9s infinite;text-align:center}
+#alarm.open{display:flex}
+#alarm .t{font-size:min(12vh,9vw);font-weight:900}
+#alarm .s{font-size:min(4vh,3.5vw);font-weight:700}
+#alarm button{font-size:4vh;font-weight:800;padding:2vh 6vw;border-radius:2vh;border:0;background:#fff;color:#d40000}
+@keyframes pulse{50%{background:#7a0000}}
+/* Startbildschirm */
+#start{position:fixed;inset:0;z-index:90;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3vh;text-align:center;padding:5vmin;cursor:pointer}
+#start h1{font-size:min(8vh,8vw);margin:0}
+#start .tap{font-size:min(4.5vh,5vw);font-weight:800;background:#0057ff;color:#fff;padding:3vh 6vw;border-radius:3vh}
+#start p{font-size:min(2.4vh,3vw);color:#555;max-width:44em;margin:0}
+#start.hidden{display:none}
+/* Einstellungen */
+#settings{position:fixed;inset:0;z-index:70;background:#f2f2f7;display:none;flex-direction:column;-webkit-user-select:text;user-select:text}
+#settings.open{display:flex}
+.sp-head{display:flex;align-items:center;justify-content:space-between;padding:max(14px,env(safe-area-inset-top)) 20px 12px;background:#fff;border-bottom:1px solid #ddd}
+.sp-head h1{font-size:24px;margin:0}
+.sp-tabs{display:flex;gap:6px;padding:10px 16px;background:#fff;border-bottom:1px solid #ddd;overflow-x:auto}
+.sp-tabs button{border:0;background:#eee;border-radius:10px;padding:10px 14px;font-size:16px;font-weight:600;white-space:nowrap}
+.sp-tabs button.on{background:#0057ff;color:#fff}
+.sp-body{flex:1;overflow:auto;padding:16px 20px max(40px,env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+.card{background:#fff;border-radius:14px;padding:16px 18px;margin:0 0 16px;max-width:900px}
+.card h2{font-size:19px;margin:0 0 10px}
+.card p{font-size:16px;line-height:1.45;margin:6px 0}
+.row{display:flex;align-items:center;gap:14px;padding:10px 0;border-top:1px solid #eee;font-size:17px;flex-wrap:wrap}
+.row:first-of-type{border-top:0}
+.row>span{flex:0 0 260px}
+.row input[type=range]{flex:1;min-width:160px;height:34px}
+.row output{min-width:70px;text-align:right;font-weight:700}
+.row input[type=checkbox]{width:28px;height:28px}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.seg label{display:flex;gap:8px;align-items:center;background:#f2f2f7;border-radius:10px;padding:12px 14px;font-size:17px;border:2px solid transparent}
+.seg label.on{border-color:#0057ff;background:#e8f0ff}
+.seg input{width:22px;height:22px}
+.btn{border:0;border-radius:10px;padding:11px 16px;font-size:16px;font-weight:650;background:#e5e5ea;cursor:pointer}
+.btn.primary{background:#0057ff;color:#fff}
+.btn.danger{background:#ffe1e1;color:#b00000}
+.btn.armed{background:#d40000;color:#fff}
+.btn.sm{padding:8px 11px;font-size:15px}
+select,input[type=text],textarea{font-size:17px;padding:10px 12px;border:1px solid #ccc;border-radius:10px;background:#fff;-webkit-user-select:text;user-select:text}
+input[type=text]{min-width:220px}
+textarea{width:100%;min-height:140px;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.tlist{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.titem{display:flex;align-items:center;gap:10px;background:#f7f7f9;border-radius:10px;padding:8px 10px}
+.titem .ti{font-size:30px;width:46px;text-align:center}
+.titem img.ti{width:46px;height:46px;object-fit:cover;border-radius:8px}
+.titem .tt{flex:1;min-width:0}
+.titem .tt b{display:block;font-size:17px}
+.titem .tt small{color:#666;font-size:14px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wrap{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.hist{font-size:16px;border-top:1px solid #eee;padding:7px 0;display:flex;gap:14px}
+.hist time{color:#777;min-width:120px}
+#edit{position:fixed;inset:0;z-index:75;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:20px}
+#edit.open{display:flex}
+#edit .box{background:#fff;border-radius:16px;padding:20px;width:min(640px,100%);max-height:92vh;overflow:auto}
+#edit .f{display:flex;flex-direction:column;gap:6px;margin:12px 0;font-size:16px;font-weight:600}
+#edit .prev{display:flex;align-items:center;gap:14px}
+#edit .prev .pv{width:110px;height:110px;border-radius:14px;background:#f2f2f7;display:flex;align-items:center;justify-content:center;font-size:64px;overflow:hidden}
+#edit .prev .pv img{width:100%;height:100%;object-fit:contain}
+#toast{position:fixed;left:50%;bottom:4vh;transform:translateX(-50%);background:#1c1c1e;color:#fff;padding:12px 20px;border-radius:12px;font-size:17px;z-index:100;display:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="quick"></header>
+  <div id="info">
+    <button id="home" class="sel"><span>⬅︎</span><span>Übersicht</span><div class="prog"></div></button>
+    <div id="title"></div>
+    <button id="gear" aria-label="Einstellungen (gedrückt halten)">⚙︎<small>halten</small><div class="prog"></div></button>
+  </div>
+  <main id="grid"></main>
+</div>
+
+<div id="overlay"><div class="bar"></div><div class="big"></div><div class="txt"></div><div class="trx"></div><div class="hint">Tippen zum Schließen</div></div>
+<div id="alarm"><div class="t">🆘 HILFE!</div><div class="s">Bitte sofort kommen!</div><button id="alarmStop">Alarm beenden</button></div>
+<div id="start">
+  <h1>💬 Sprechtafel</h1>
+  <div class="tap">Hier tippen zum Starten</div>
+  <p>Das einmalige Antippen schaltet Ton und Sprachausgabe frei.<br>
+  Für Begleitpersonen: Das Zahnrad oben rechts <b>2 Sekunden gedrückt halten</b>, um Einstellungen, Kacheln und Fotos zu bearbeiten.</p>
+</div>
+<div id="settings"></div>
+<div id="edit"><div class="box"></div></div>
+<div id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,10);
+
+/* ---------- Speicher (nur lokal auf diesem Gerät) ---------- */
+const LS='sprechtafel.v1.';
+function load(k,def){try{const v=localStorage.getItem(LS+k);return v?JSON.parse(v):def;}catch(e){return def;}}
+function store(k,v){try{localStorage.setItem(LS+k,JSON.stringify(v));return true;}catch(e){toast('Konnte nicht speichern – Speicher voll? Weniger/kleinere Fotos verwenden.');return false;}}
+
+/* ---------- Standardinhalte ---------- */
+function t(icon,label,say){return {id:uid(),icon,label,say:say||label,img:null};}
+function defaultData(){return {categories:[
+ {id:uid(),name:'Rollstuhl',icon:'🦽',color:'#dbeafe',type:'tiles',tiles:[
+  t('⬆️','Rücken hoch','Bitte die Rückenlehne etwas hoch.'),
+  t('⬇️','Rücken runter','Bitte die Rückenlehne etwas runter.'),
+  t('⏫','Rücken ganz hoch','Bitte die Rückenlehne ganz hoch.'),
+  t('⏬','Rücken ganz runter','Bitte die Rückenlehne ganz runter.'),
+  t('👌','So ist gut','So ist es gut.'),
+  t('🦵⬆️','Beine hoch','Bitte die Beine etwas hoch.'),
+  t('🦵⬇️','Beine runter','Bitte die Beine etwas runter.'),
+  t('🦵⏫','Beine ganz hoch','Bitte die Beine ganz hoch.'),
+  t('🦵⏬','Beine ganz runter','Bitte die Beine ganz runter.'),
+  t('➕','Ein bisschen mehr','Ein bisschen mehr, bitte.'),
+  t('🙆','Kopf anders','Bitte meinen Kopf oder die Kopfstütze anders einstellen.'),
+  t('🔝','Höher setzen','Bitte zieh mich im Rollstuhl höher.'),
+  t('🪑','Sitze unbequem','Ich sitze unbequem. Bitte anders hinsetzen.'),
+  t('➖','Ein bisschen weniger','Ein bisschen weniger, bitte.'),
+  t('↩️','Sitz nach hinten kippen','Bitte den Sitz nach hinten kippen.'),
+  t('↪️','Sitz nach vorne kippen','Bitte den Sitz nach vorne kippen.'),
+  t('💪','Arm anders legen','Bitte meinen Arm anders legen.'),
+  t('🦶','Füße anders','Bitte meine Füße anders stellen.'),
+  t('🛋️','Kissen','Bitte ein Kissen.'),
+  t('🛏️','Ins Bett','Ich möchte ins Bett.'),
+  t('🚪','Woanders hin','Ich möchte woanders hin. Bitte fahr mich.'),
+  t('🌳','Nach draußen','Ich möchte nach draußen.'),
+ ]},
+ {id:uid(),name:'Bett & Lagerung',icon:'🛏️',color:'#e0e7ff',type:'tiles',tiles:[
+  t('⬆️','Kopfteil hoch','Bitte das Kopfteil hoch.'),
+  t('⬇️','Kopfteil runter','Bitte das Kopfteil runter.'),
+  t('🦵⬆️','Fußteil hoch','Bitte das Fußteil hoch.'),
+  t('🦵⬇️','Fußteil runter','Bitte das Fußteil runter.'),
+  t('👌','So ist gut','So ist es gut.'),
+  t('⬅️','Auf linke Seite','Bitte dreh mich auf die linke Seite.'),
+  t('➡️','Auf rechte Seite','Bitte dreh mich auf die rechte Seite.'),
+  t('🛌','Auf den Rücken','Bitte dreh mich auf den Rücken.'),
+  t('🔝','Höher ziehen','Bitte zieh mich im Bett höher.'),
+  t('🛋️','Kissen richten','Bitte mein Kissen richten.'),
+  t('🧣','Decke drauf','Bitte deck mich zu.'),
+  t('🌬️','Decke weg','Bitte nimm die Decke weg.'),
+  t('🧍','Aufstehen','Ich möchte aufstehen.'),
+  t('🦽','In den Rollstuhl','Ich möchte in den Rollstuhl.'),
+ ]},
+ {id:uid(),name:'Essen & Trinken',icon:'🥤',color:'#dcfce7',type:'tiles',tiles:[
+  t('🥤','Durst','Ich habe Durst.'),
+  t('💧','Wasser','Bitte Wasser.'),
+  t('☕','Kaffee','Bitte einen Kaffee.'),
+  t('🍵','Tee','Bitte einen Tee.'),
+  t('🧃','Saft','Bitte Saft.'),
+  t('🍽️','Hunger','Ich habe Hunger.'),
+  t('🍮','Etwas Weiches','Bitte etwas Weiches zu essen, zum Beispiel Joghurt oder Pudding.'),
+  t('🍫','Etwas Süßes','Ich möchte etwas Süßes.'),
+  t('🧋','Strohhalm','Bitte mit Strohhalm.'),
+  t('🔥','Zu heiß','Das ist zu heiß.'),
+  t('🧊','Zu kalt','Das ist zu kalt.'),
+  t('🐢','Langsamer','Bitte langsamer.'),
+  t('✋','Satt','Ich bin satt.'),
+  t('🧻','Mund abwischen','Bitte meinen Mund abwischen.'),
+  t('😮‍💨','Verschluckt','Ich habe mich verschluckt.'),
+ ]},
+ {id:uid(),name:'Pflege',icon:'🚽',color:'#fef9c3',type:'tiles',tiles:[
+  t('🚽','Toilette','Ich muss auf die Toilette.'),
+  t('🩲','Einlage wechseln','Bitte die Einlage wechseln.'),
+  t('🧼','Waschen','Ich möchte gewaschen werden.'),
+  t('🪥','Zähne putzen','Bitte Zähne putzen.'),
+  t('👄','Mund trocken','Mein Mund ist trocken.'),
+  t('🤧','Nase putzen','Bitte meine Nase putzen.'),
+  t('👁️','Augen','Bitte etwas an meinen Augen machen.'),
+  t('🫳','Es juckt','Es juckt. Bitte kratzen.'),
+  t('🧴','Eincremen','Bitte eincremen.'),
+  t('💇‍♀️','Haare','Bitte meine Haare machen.'),
+  t('👓','Brille','Bitte meine Brille.'),
+  t('👕','Umziehen','Ich möchte mich umziehen.'),
+  t('🫧','Schleim im Hals','Ich habe Schleim im Hals.'),
+  t('🧻','Taschentuch','Bitte ein Taschentuch.'),
+ ]},
+ {id:uid(),name:'Schmerzen',icon:'🤕',color:'#fee2e2',type:'tiles',tiles:[
+  t('🤕','Kopf','Ich habe Kopfschmerzen.'),
+  t('👁️','Augen','Meine Augen tun weh.'),
+  t('🦷','Mund / Zähne','Mein Mund oder meine Zähne tun weh.'),
+  t('🧣','Nacken','Mein Nacken tut weh.'),
+  t('🤷','Schulter','Meine Schulter tut weh.'),
+  t('💪','Arm','Mein Arm tut weh.'),
+  t('✋','Hand','Meine Hand tut weh.'),
+  t('🫁','Brust','Meine Brust tut weh.'),
+  t('😖','Bauch','Ich habe Bauchschmerzen.'),
+  t('🧍','Rücken','Mein Rücken tut weh.'),
+  t('🪑','Po / Druckstelle','Mein Po tut weh. Vielleicht eine Druckstelle.'),
+  t('🦵','Bein','Mein Bein tut weh.'),
+  t('🦶','Fuß','Mein Fuß tut weh.'),
+  t('⬅️','Links','Links.'),
+  t('➡️','Rechts','Rechts.'),
+  t('🟡','Ein bisschen','Es tut ein bisschen weh.'),
+  t('🟠','Mittel','Es tut mittel weh.'),
+  t('🔴','Stark','Es tut stark weh.'),
+  t('🆘','Sehr stark','Es tut sehr stark weh!'),
+ ]},
+ {id:uid(),name:'Wie geht es mir',icon:'😊',color:'#fae8ff',type:'tiles',tiles:[
+  t('😊','Gut','Mir geht es gut.'),
+  t('😟','Nicht gut','Mir geht es nicht gut.'),
+  t('😴','Müde','Ich bin müde.'),
+  t('💤','Schlafen','Ich möchte schlafen.'),
+  t('🥶','Kalt','Mir ist kalt.'),
+  t('🥵','Warm','Mir ist zu warm.'),
+  t('🤢','Übel','Mir ist übel.'),
+  t('😵‍💫','Schwindelig','Mir ist schwindelig.'),
+  t('🫁','Schlecht Luft','Ich bekomme schlecht Luft.'),
+  t('😨','Angst','Ich habe Angst.'),
+  t('😢','Traurig','Ich bin traurig.'),
+  t('😬','Unruhig','Ich bin unruhig.'),
+  t('🥱','Langeweile','Mir ist langweilig.'),
+  t('🥰','Glücklich','Ich bin glücklich.'),
+  t('😠','Ärgerlich','Ich ärgere mich.'),
+ ]},
+ {id:uid(),name:'Zimmer & Umgebung',icon:'💡',color:'#ccfbf1',type:'tiles',tiles:[
+  t('💡','Licht an','Bitte das Licht an.'),
+  t('🌑','Licht aus','Bitte das Licht aus.'),
+  t('🪟','Fenster auf','Bitte das Fenster öffnen.'),
+  t('🔒','Fenster zu','Bitte das Fenster schließen.'),
+  t('🌗','Rollladen','Bitte den Rollladen oder Vorhang verstellen.'),
+  t('📺','Fernseher an','Bitte den Fernseher anmachen.'),
+  t('📴','Fernseher aus','Bitte den Fernseher ausmachen.'),
+  t('🔄','Anderer Sender','Bitte einen anderen Sender.'),
+  t('🔊','Lauter','Bitte lauter.'),
+  t('🔉','Leiser','Bitte leiser.'),
+  t('🎵','Musik','Ich möchte Musik hören.'),
+  t('🤫','Ruhe','Ich möchte Ruhe.'),
+  t('🚪','Tür zu','Bitte die Tür zumachen.'),
+  t('🌡️','Heizung','Bitte die Heizung verstellen.'),
+  t('📱','Telefon / Tablet','Ich möchte das Telefon oder Tablet.'),
+ ]},
+ {id:uid(),name:'Menschen',icon:'👨‍👩‍👧',color:'#ffedd5',type:'tiles',tiles:[
+  t('❤️','Mein Partner','Ich möchte zu meinem Partner.'),
+  t('👨‍👩‍👧','Familie','Ich möchte meine Familie sehen.'),
+  t('🧒','Kinder','Ich möchte meine Kinder sehen.'),
+  t('👵','Enkel','Ich möchte meine Enkel sehen.'),
+  t('👭','Freundin','Ich möchte meine Freundin sehen.'),
+  t('👩‍⚕️','Pflege','Bitte die Pflege holen.'),
+  t('🩺','Arzt','Ich möchte mit dem Arzt sprechen.'),
+  t('📞','Anrufen','Ich möchte jemanden anrufen.'),
+  t('🙋','Besuch','Kommt heute Besuch?'),
+  t('🤝','Bleib bei mir','Bitte bleib bei mir.'),
+  t('🧘','Allein sein','Ich möchte allein sein.'),
+ ]},
+ {id:uid(),name:'Gespräch',icon:'💬',color:'#f1f5f9',type:'tiles',tiles:[
+  t('👋','Hallo','Hallo!'),
+  t('🙏','Danke','Danke.'),
+  t('🤲','Bitte','Bitte.'),
+  t('❤️','Ich liebe dich','Ich liebe dich.'),
+  t('✋','Warte','Moment, bitte warte.'),
+  t('🔁','Nochmal','Bitte nochmal.'),
+  t('❓','Nicht verstanden','Ich habe das nicht verstanden.'),
+  t('💬','Ich will was sagen','Ich möchte etwas sagen.'),
+  t('🙋','Ja/Nein-Fragen','Bitte stell mir Ja-Nein-Fragen.'),
+  t('🔤','Buchstabieren','Ich möchte buchstabieren.'),
+  t('🚫','Meine ich nicht','Das meine ich nicht.'),
+  t('😂','Lustig','Das ist lustig.'),
+  t('🕐','Wie spät?','Wie spät ist es?'),
+  t('📅','Welcher Tag?','Was für ein Tag ist heute?'),
+  t('🌙','Gute Nacht','Gute Nacht.'),
+ ]},
+ alltagCat(),
+ {id:uid(),name:'Buchstaben',icon:'🔤',color:'#ffffff',type:'alphabet',tiles:[]},
+]};}
+
+/* Alltagssätze Deutsch / Türkisch */
+function tt(icon,label,say,tr){const x=t(icon,label,say);x.tr=tr;return x;}
+function alltagCat(){return {id:'alltag',name:'Alltag DE / TR',icon:'🗣️',color:'#fff1e6',type:'tiles',tiles:[
+  tt('🌅','Guten Morgen','Guten Morgen!','Günaydın!'),
+  tt('🌙','Gute Nacht','Gute Nacht!','İyi geceler!'),
+  tt('🙂','Wie geht es dir?','Wie geht es dir?','Nasılsın?'),
+  tt('😊','Mir geht es gut','Mir geht es gut.','İyiyim.'),
+  tt('🙏','Danke','Danke!','Teşekkür ederim!'),
+  tt('🤲','Bitte','Bitte.','Lütfen.'),
+  tt('🥤','Ich habe Durst','Ich habe Durst.','Susadım.'),
+  tt('🍽️','Ich habe Hunger','Ich habe Hunger.','Acıktım.'),
+  tt('🚽','Toilette','Ich muss auf die Toilette.','Tuvalete gitmem lazım.'),
+  tt('🥶','Mir ist kalt','Mir ist kalt.','Üşüyorum.'),
+  tt('🥵','Mir ist warm','Mir ist warm.','Sıcakladım.'),
+  tt('😴','Ich bin müde','Ich bin müde.','Yorgunum.'),
+  tt('🤕','Ich habe Schmerzen','Ich habe Schmerzen.','Ağrım var.'),
+  tt('🆘','Hilf mir bitte','Hilf mir bitte.','Lütfen bana yardım et.'),
+  tt('👋','Komm bitte her','Komm bitte her.','Lütfen buraya gel.'),
+  tt('❤️','Ich liebe dich','Ich liebe dich.','Seni seviyorum.'),
+  tt('🥹','Ich vermisse dich','Ich vermisse dich.','Seni özledim.'),
+  tt('🤗','Schön, dass du da bist','Schön, dass du da bist.','İyi ki geldin.'),
+  tt('🕐','Wann kommst du wieder?','Wann kommst du wieder?','Ne zaman tekrar geleceksin?'),
+  tt('📞','Ruf meine Familie an','Ruf bitte meine Familie an.','Lütfen ailemi ara.'),
+  tt('💤','Ich möchte schlafen','Ich möchte schlafen.','Uyumak istiyorum.'),
+  tt('🛋️','Ich möchte mich ausruhen','Ich möchte mich ausruhen.','Dinlenmek istiyorum.'),
+  tt('🌳','Ich möchte nach draußen','Ich möchte nach draußen.','Dışarı çıkmak istiyorum.'),
+  tt('📺','Ich möchte fernsehen','Ich möchte fernsehen.','Televizyon izlemek istiyorum.'),
+  tt('🎵','Ich möchte Musik hören','Ich möchte Musik hören.','Müzik dinlemek istiyorum.'),
+  tt('😋','Das schmeckt gut','Das schmeckt gut.','Çok lezzetli.'),
+  tt('😨','Ich habe Angst','Ich habe Angst.','Korkuyorum.'),
+  tt('❓','Ich verstehe dich nicht','Ich verstehe dich nicht.','Seni anlamıyorum.'),
+  tt('🐢','Sprich bitte langsamer','Sprich bitte langsamer.','Lütfen daha yavaş konuş.'),
+  tt('✋','Warte bitte','Warte bitte.','Lütfen bekle.'),
+]};}
+
+const QUICK=[
+ {k:'ja',icon:'✅',label:'JA',say:'Ja.',tr:'Evet.',bg:'#1f9d55'},
+ {k:'nein',icon:'❌',label:'NEIN',say:'Nein.',tr:'Hayır.',bg:'#d62f2f'},
+ {k:'wn',icon:'🤷',label:'WEISS NICHT',say:'Ich weiß nicht.',tr:'Bilmiyorum.',bg:'#6b7280'},
+ {k:'stop',icon:'✋',label:'STOPP',say:'Stopp!',tr:'Dur!',bg:'#ea7a00'},
+ {k:'help',icon:'🆘',label:'HILFE',say:'Hilfe! Bitte kommen!',tr:'Yardım edin!',bg:'#a10000'},
+];
+
+const DEF_S={mode:'tap',dwellMs:1500,scanMs:1600,lockMs:1000,scanSound:true,hover:true,
+  cols:5,rows:3,overlaySec:4,speech:true,voiceURI:'',voiceTrURI:'',lang:'both',showTr:true,rate:0.95,chime:true,speakLetters:true};
+let S=Object.assign({},DEF_S,load('settings',{}));
+let data=load('data',null); if(!data||!Array.isArray(data.categories)) data=defaultData();
+/* Neuen Bereich „Alltag DE/TR“ auch in schon eingerichtete Tafeln einfügen (einmalig) */
+if(!data.categories.some(c=>c.id==='alltag')&&!(data.removed||[]).includes('alltag')){
+  const i=data.categories.findIndex(c=>c.type==='alphabet');
+  data.categories.splice(i<0?data.categories.length:i,0,alltagCat());
+  try{localStorage.setItem(LS+'data',JSON.stringify(data));}catch(e){}
+}
+let hist=load('history',[]);
+let spell=load('spell','');
+
+let curCat=null, page=0, started=false, overlayOpen=false, alarmOn=false, settingsOpen=false;
+let lockUntil=0;
+
+/* ---------- Ton & Sprache ---------- */
+let actx=null;
+function ac(){if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}} if(actx&&actx.state==='suspended'){try{actx.resume();}catch(e){}} return actx;}
+function tone(f,d,w=0,v=.2,type='sine'){const a=ac();if(!a)return;try{const o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.value=f;const t0=a.currentTime+w;
+  g.gain.setValueAtTime(0.0001,t0);g.gain.linearRampToValueAtTime(v,t0+.02);g.gain.exponentialRampToValueAtTime(.0001,t0+d);o.connect(g);g.connect(a.destination);o.start(t0);o.stop(t0+d+.05);}catch(e){}}
+const chime=()=>{tone(880,.28,0,.25);tone(1320,.4,.17,.22);};
+const tick=()=>tone(1400,.04,0,.06,'square');
+let voice=null,voiceTr=null;
+function pickVoice(){try{const vs=speechSynthesis.getVoices();
+  voice=vs.find(v=>v.voiceURI===S.voiceURI)||vs.find(v=>/^de(-|_|$)/i.test(v.lang)&&/anna|petra|helena|markus|yannick/i.test(v.name))||vs.find(v=>/^de/i.test(v.lang))||null;
+  voiceTr=vs.find(v=>v.voiceURI===S.voiceTrURI)||vs.find(v=>/^tr/i.test(v.lang))||null;}catch(e){}}
+if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice;}
+/* parts: [{text, lang:'de'|'tr'}] – werden nacheinander gesprochen */
+function speakParts(parts,withChime){
+  if(!S.speech||!('speechSynthesis' in window))return;
+  parts=parts.filter(p=>p&&p.text);if(!parts.length)return;
+  const go=()=>{try{speechSynthesis.cancel();parts.forEach(p=>{const u=new SpeechSynthesisUtterance(p.text);
+    if(p.lang==='tr'){u.lang='tr-TR';if(voiceTr)u.voice=voiceTr;}else{u.lang='de-DE';if(voice)u.voice=voice;}
+    u.rate=S.rate;u.volume=1;speechSynthesis.speak(u);});}catch(e){}};
+  if(withChime&&S.chime){chime();setTimeout(go,450);}else go();
+}
+function speak(text,withChime){speakParts([{text,lang:'de'}],withChime);}
+/* Sprachwahl für einen Satz mit optionaler türkischer Fassung */
+function partsFor(de,tr){
+  if(!tr)return [{text:de,lang:'de'}];
+  if(S.lang==='tr')return [{text:tr,lang:'tr'}];
+  if(S.lang==='de')return [{text:de,lang:'de'}];
+  if(S.lang==='trde')return [{text:tr,lang:'tr'},{text:de,lang:'de'}];
+  return [{text:de,lang:'de'},{text:tr,lang:'tr'}];
+}
+
+/* ---------- Bildschirm wach halten ---------- */
+let wl=null;
+async function wake(){try{if(navigator.wakeLock&&document.visibilityState==='visible')wl=await navigator.wakeLock.request('screen');}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&started)wake();});
+
+/* ---------- Verlauf ---------- */
+function addHist(text){hist.unshift({t:Date.now(),text});if(hist.length>150)hist.length=150;store('history',hist);}
+
+/* ---------- Toast ---------- */
+let toastT;function toast(m){const e=$('#toast');e.textContent=m;e.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>e.style.display='none',3200);}
+
+/* ---------- Großanzeige ---------- */
+let ovT;
+function showOverlay(o){
+  const ov=$('#overlay');ov.style.setProperty('--c',o.color||'#fff');
+  const big=ov.querySelector('.big');
+  if(o.img){const im=document.createElement('img');im.className='big';im.src=o.img;big.replaceWith(im);}
+  else{const d=document.createElement('div');d.className='big';d.textContent=o.icon||'💬';big.replaceWith(d);}
+  ov.querySelector('.txt').textContent=o.text;ov.querySelector('.trx').textContent=(o.tr&&S.lang!=='de')?o.tr:'';
+  const bar=ov.querySelector('.bar');
+  ov.classList.add('open');overlayOpen=true;cancelDwell();clearHL();
+  clearTimeout(ovT);
+  if(S.overlaySec>0){
+    bar.style.display='block';bar.style.transition='none';bar.style.transform='scaleX(1)';void bar.offsetWidth;
+    bar.style.transition=`transform ${S.overlaySec}s linear`;bar.style.transform='scaleX(0)';
+    ovT=setTimeout(hideOverlay,S.overlaySec*1000);
+  } else bar.style.display='none';
+}
+function hideOverlay(){clearTimeout(ovT);$('#overlay').classList.remove('open');overlayOpen=false;lockUntil=Date.now()+400;if(S.mode==='scan'){scanIdx=-1;}}
+$('#overlay').addEventListener('click',hideOverlay);
+
+/* ---------- Alarm ---------- */
+let alarmT;
+function startAlarm(){
+  alarmOn=true;cancelDwell();$('#alarm').classList.add('open');addHist('🆘 HILFE-Alarm');
+  const siren=()=>{tone(960,.42,0,.35,'sawtooth');tone(720,.42,.45,.35,'sawtooth');};
+  siren();alarmT=setInterval(siren,950);
+  setTimeout(()=>{if(alarmOn)speakParts(partsFor('Hilfe! Bitte sofort kommen!','Yardım edin! Hemen gelin!'));},300);
+}
+function stopAlarm(){alarmOn=false;clearInterval(alarmT);$('#alarm').classList.remove('open');try{speechSynthesis.cancel();}catch(e){}lockUntil=Date.now()+600;}
+$('#alarm').addEventListener('click',stopAlarm);
+
+/* ---------- Aktionen ---------- */
+function sayItem(it,color){
+  const text=it.say||it.label,tr=it.tr||'';
+  addHist(tr?text+'  /  '+tr:text);
+  if(tr&&S.lang==='tr')showOverlay({icon:it.icon,img:it.img,text:tr,color});
+  else showOverlay({icon:it.icon,img:it.img,text,tr,color});
+  speakParts(partsFor(text,tr),true);
+}
+function activate(el){
+  if(!el||!el._act)return;
+  if(Date.now()<lockUntil||overlayOpen||alarmOn||settingsOpen)return;
+  cancelDwell();
+  lockUntil=Date.now()+S.lockMs;
+  el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');
+  el._act();
+}
+
+/* ---------- Schnellleiste ---------- */
+function renderQuick(){
+  const q=$('#quick');q.innerHTML='';
+  QUICK.forEach(b=>{
+    const d=document.createElement('button');d.className='qb sel';d.style.background=b.bg;
+    d.innerHTML=`<span class="e">${b.icon}</span><span>${esc(b.label)}</span><div class="prog"></div>`;
+    d._act=b.k==='help'?startAlarm:()=>sayItem({icon:b.icon,label:b.label,say:b.say,tr:b.tr},'#ffffff');
+    q.appendChild(d);
+  });
+}
+
+/* ---------- Raster ---------- */
+function dims(){let c=+S.cols,r=+S.rows;if(innerHeight>innerWidth)[c,r]=[r,c];return [c,r];}
+const ALPHA='ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜß'.split('');
+function setSpell(v){spell=v;store('spell',spell);updateTitle();}
+function addChar(ch){setSpell(spell+ch);if(S.speakLetters)speak(ch===' '?'Leerzeichen':ch==='ß'?'scharfes S':ch.toLowerCase());}
+function delChar(){setSpell(spell.slice(0,-1));if(S.speakLetters)speak('gelöscht');}
+function readText(){const tx=spell.trim();if(!tx){speak('Noch nichts geschrieben.');return;}addHist(tx);showOverlay({icon:'🔤',text:tx,color:'#ffffff'});speak(tx,true);}
+function newText(){setSpell('');speak('Neu');}
+
+function updateTitle(){
+  const ti=$('#title');const cat=curCat&&data.categories.find(c=>c.id===curCat);
+  if(cat&&cat.type==='alphabet'){ti.className='spell';ti.textContent=spell||'';}
+  else{ti.className='';ti.textContent=cat?`${cat.icon}  ${cat.name}`:'Was möchtest du sagen?';}
+}
+
+function render(){
+  const g=$('#grid');g.innerHTML='';clearHL();cancelDwell();
+  document.body.classList.toggle('hover',!!S.hover);
+  const cat=curCat&&data.categories.find(c=>c.id===curCat);
+  if(curCat&&!cat)curCat=null;
+  $('#home').classList.toggle('off',!cat);
+  updateTitle();
+  let items,cols,rows,isAlpha=false;
+  if(!cat){
+    items=data.categories.map(c=>({icon:c.icon,img:c.img,label:c.name,color:c.color,act:()=>{curCat=c.id;page=0;render();restartScan();}}));
+  }else if(cat.type==='alphabet'){
+    isAlpha=true;
+    items=ALPHA.map(ch=>({label:ch,letter:true,act:()=>addChar(ch)}));
+    items.push({label:'?',letter:true,act:()=>addChar('?')},{label:'.',letter:true,act:()=>addChar('.')},
+      {icon:'␣',label:'Leer',cls:'act',act:()=>addChar(' ')},{icon:'⌫',label:'Löschen',cls:'act',act:delChar},
+      {icon:'🔊',label:'Vorlesen',cls:'act',act:readText},{icon:'🗑️',label:'Neu',cls:'act',act:newText});
+    const land=innerWidth>=innerHeight;cols=land?9:6;rows=Math.ceil(items.length/cols);
+  }else{
+    items=cat.tiles.map(ti=>({icon:ti.icon,img:ti.img,label:ti.label,tr:ti.tr,color:cat.color,act:()=>sayItem(ti,cat.color)}));
+  }
+  if(!isAlpha){
+    [cols,rows]=dims();const cap=cols*rows;
+    if(items.length>cap){
+      const per=cap-1,pages=Math.ceil(items.length/per);page=((page%pages)+pages)%pages;
+      const p=page;items=items.slice(p*per,p*per+per);
+      items.push({icon:'▶️',label:`Weitere  ${p+1}/${pages}`,nav:true,act:()=>{page=(p+1)%pages;render();restartScan();}});
+    }else page=0;
+  }
+  g.style.setProperty('--cols',cols);g.style.setProperty('--rows',rows);
+  items.forEach(it=>{
+    const d=document.createElement('div');
+    d.className='tile sel'+(it.nav?' nav':'')+(it.letter?' letter':'')+(it.cls?' '+it.cls:'');
+    if(it.color)d.style.setProperty('--c',it.color);
+    if(it.img){const im=document.createElement('img');im.className='ic';im.src=it.img;im.alt='';d.appendChild(im);}
+    else if(it.icon){const ic=document.createElement('div');ic.className='ic';ic.textContent=it.icon;d.appendChild(ic);}
+    const lb=document.createElement('div');lb.className='lb';lb.textContent=it.label;d.appendChild(lb);
+    if(it.tr&&S.showTr){const tl=document.createElement('div');tl.className='trl';tl.textContent=it.tr;d.appendChild(tl);}
+    const pr=document.createElement('div');pr.className='prog';d.appendChild(pr);
+    d._act=it.act;g.appendChild(d);
+  });
+  requestAnimationFrame(()=>{
+    const ch=g.clientHeight/rows,cw=g.clientWidth/cols;
+    g.style.setProperty('--ic',Math.max(18,Math.min(ch*.42,cw*.42))+'px');
+    g.style.setProperty('--lb',Math.max(14,Math.min(ch*.15,cw*.115))+'px');
+    g.style.setProperty('--lt',Math.max(18,Math.min(ch*.6,cw*.6))+'px');
+  });
+}
+$('#home')._act=()=>{curCat=null;page=0;render();restartScan();};
+
+/* ---------- Bedienung: Antippen ---------- */
+$('#app').addEventListener('click',e=>{
+  if(!started||S.mode==='scan')return;
+  const el=e.target.closest('.sel');if(el)activate(el);
+});
+
+/* ---------- Bedienung: Verweilen (Blick/Zeiger ruht auf Kachel) ---------- */
+let dwellEl=null,dwellT=null;
+function startDwell(el){
+  dwellEl=el;el.classList.add('hl');const p=el.querySelector('.prog');
+  if(p){p.style.transition='none';p.style.transform='scaleY(0)';void p.offsetWidth;p.style.transition=`transform ${S.dwellMs}ms linear`;p.style.transform='scaleY(1)';}
+  dwellT=setTimeout(()=>{const x=dwellEl;activate(x);},S.dwellMs);
+}
+function cancelDwell(){
+  clearTimeout(dwellT);dwellT=null;
+  if(dwellEl){dwellEl.classList.remove('hl');const p=dwellEl.querySelector('.prog');if(p){p.style.transition='none';p.style.transform='scaleY(0)';}}
+  dwellEl=null;
+}
+$('#app').addEventListener('pointerover',e=>{
+  if(!started||S.mode!=='dwell'||overlayOpen||alarmOn)return;
+  const el=e.target.closest('.sel');if(el===dwellEl)return;
+  cancelDwell();if(el&&Date.now()>=lockUntil-200)startDwell(el);else if(el){setTimeout(()=>{if(!dwellEl&&el.matches(':hover'))startDwell(el);},Math.max(0,lockUntil-Date.now()));}
+});
+$('#app').addEventListener('pointerout',e=>{
+  if(S.mode!=='dwell')return;
+  const el=e.target.closest('.sel');if(!el||el!==dwellEl)return;
+  if(e.relatedTarget&&el.contains(e.relatedTarget))return;
+  cancelDwell();
+});
+
+/* ---------- Bedienung: Scannen (automatisch wandernde Markierung) ---------- */
+let scanT=null,scanIdx=-1;
+function scanItems(){return [...document.querySelectorAll('#grid .sel'),...(curCat?[$('#home')]:[]),...document.querySelectorAll('#quick .sel')];}
+function clearHL(){document.querySelectorAll('.hl').forEach(x=>x.classList.remove('hl'));}
+function scanStep(){
+  if(overlayOpen||alarmOn||settingsOpen||!started)return;
+  const it=scanItems();if(!it.length)return;
+  clearHL();scanIdx=(scanIdx+1)%it.length;it[scanIdx].classList.add('hl');
+  if(S.scanSound)tick();
+}
+function startScan(){stopScan();if(S.mode!=='scan'||!started)return;scanIdx=-1;scanStep();scanT=setInterval(scanStep,S.scanMs);}
+function stopScan(){clearInterval(scanT);scanT=null;clearHL();}
+function restartScan(){if(S.mode==='scan')startScan();}
+function scanSelect(){
+  const it=scanItems();const el=it[scanIdx];
+  if(el){activate(el);}
+  if(S.mode==='scan'){stopScan();setTimeout(()=>{if(S.mode==='scan'&&!settingsOpen)startScan();},Math.max(S.lockMs,300));}
+}
+document.addEventListener('pointerdown',e=>{
+  if(S.mode!=='scan'||!started||settingsOpen||alarmOn)return;
+  if(e.target.closest('#gear')||e.target.closest('#start'))return;
+  if(overlayOpen){hideOverlay();restartScan();return;}
+  e.preventDefault();scanSelect();
+});
+document.addEventListener('keydown',e=>{
+  if(settingsOpen||!started)return;
+  if(e.key===' '||e.key==='Enter'){
+    e.preventDefault();
+    if(alarmOn){stopAlarm();return;}
+    if(overlayOpen){hideOverlay();restartScan();return;}
+    if(S.mode==='scan')scanSelect();
+  }
+});
+
+/* ---------- Zahnrad halten → Einstellungen ---------- */
+let gearT=null;const gear=$('#gear');
+function gearCancel(){clearTimeout(gearT);gearT=null;const p=gear.querySelector('.prog');p.style.transition='none';p.style.transform='scaleY(0)';}
+gear.addEventListener('pointerdown',e=>{
+  e.stopPropagation();const p=gear.querySelector('.prog');
+  p.style.transition='none';p.style.transform='scaleY(0)';void p.offsetWidth;p.style.transition='transform 2s linear';p.style.transform='scaleY(1)';
+  gearT=setTimeout(()=>{gearCancel();openSettings();},2000);
+});
+['pointerup','pointerleave','pointercancel'].forEach(ev=>gear.addEventListener(ev,gearCancel));
+gear.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* ---------- Start ---------- */
+$('#start').addEventListener('click',()=>{
+  ac();tone(660,.15,0,.15);
+  try{if('speechSynthesis' in window){const u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u);}}catch(e){}
+  try{const el=document.documentElement;if(el.requestFullscreen)el.requestFullscreen().catch(()=>{});}catch(e){}
+  started=true;$('#start').classList.add('hidden');wake();lockUntil=Date.now()+500;restartScan();
+});
+
+let rT;addEventListener('resize',()=>{clearTimeout(rT);rT=setTimeout(()=>{render();restartScan();},200);});
+
+/* =========================================================
+   EINSTELLUNGEN
+   ========================================================= */
+let spTab='bedienung',edCat=null,editTile=null;
+function openSettings(){settingsOpen=true;stopScan();cancelDwell();if(overlayOpen)hideOverlay();renderSettings();$('#settings').classList.add('open');}
+function closeSettings(){settingsOpen=false;$('#settings').classList.remove('open');$('#edit').classList.remove('open');store('settings',S);store('data',data);pickVoice();render();restartScan();}
+
+function rng(k,label,min,max,step,fmt){return `<label class="row"><span>${label}</span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${S[k]}"><output data-o="${k}">${fmt(S[k])}</output></label>`;}
+function chk(k,label){return `<label class="row"><span>${label}</span><input type="checkbox" data-k="${k}" ${S[k]?'checked':''}></label>`;}
+const FMT={dwellMs:v=>(v/1000).toFixed(1)+' s',scanMs:v=>(v/1000).toFixed(1)+' s',lockMs:v=>(v/1000).toFixed(1)+' s',
+  cols:v=>v,rows:v=>v,overlaySec:v=>+v===0?'bis Tippen':v+' s',rate:v=>(+v).toFixed(2)};
+
+function renderSettings(){
+  const tabs=[['bedienung','Bedienung'],['anzeige','Anzeige & Sprache'],['inhalte','Kacheln & Fotos'],['verlauf','Verlauf'],['sicherung','Sicherung'],['hilfe','Einrichtung iPad']];
+  let h=`<div class="sp-head"><h1>⚙︎ Einstellungen</h1><button class="btn primary" data-a="close">Fertig</button></div>
+  <div class="sp-tabs">${tabs.map(([k,l])=>`<button data-tab="${k}" class="${spTab===k?'on':''}">${l}</button>`).join('')}</div><div class="sp-body">`;
+  if(spTab==='bedienung'){
+    const modes=[['tap','👆 Antippen / iPad-Augensteuerung','Für die Augensteuerung des iPads (iPadOS 18+) oder Bedienung mit dem Finger.'],
+      ['dwell','👁️ Verweilen (in der App)','Kachel wird gewählt, wenn der Zeiger/Blick eine Zeit lang darauf ruht. Für Kopf-/Augenmaus mit Zeiger.'],
+      ['scan','🔁 Scannen','Die Markierung wandert von Kachel zu Kachel. Irgendwo tippen, Taste oder externer Schalter wählt aus.']];
+    h+=`<div class="card"><h2>Wie wird ausgewählt?</h2><div class="seg">${modes.map(([v,l])=>`<label class="${S.mode===v?'on':''}"><input type="radio" name="mode" data-k="mode" value="${v}" ${S.mode===v?'checked':''}>${l}</label>`).join('')}</div>
+      <p>${modes.find(m=>m[0]===S.mode)[2]}</p></div>
+      <div class="card"><h2>Zeiten</h2>
+      ${rng('dwellMs','Verweilzeit (Modus Verweilen)',500,4000,100,FMT.dwellMs)}
+      ${rng('scanMs','Scan-Tempo (pro Kachel)',600,5000,100,FMT.scanMs)}
+      ${rng('lockMs','Pause nach einer Auswahl',300,3000,100,FMT.lockMs)}
+      ${chk('scanSound','Leises Klicken beim Scannen')}
+      ${chk('hover','Kachel unter dem Zeiger/Blick hervorheben')}
+      </div>`;
+  }
+  if(spTab==='anzeige'){
+    let vs=[],vt=[];try{const all=speechSynthesis.getVoices();vs=all.filter(v=>/^de/i.test(v.lang));vt=all.filter(v=>/^tr/i.test(v.lang));}catch(e){}
+    const LANGS=[['both','Erst Deutsch, dann Türkisch'],['trde','Erst Türkisch, dann Deutsch'],['de','Nur Deutsch'],['tr','Nur Türkisch']];
+    h+=`<div class="card"><h2>Raster (Querformat – im Hochformat automatisch gedreht)</h2>
+      ${rng('cols','Spalten',2,7,1,FMT.cols)}${rng('rows','Zeilen',2,5,1,FMT.rows)}
+      <p>Wenige, große Kacheln sind mit den Augen leichter zu treffen. Passen nicht alle Kacheln auf eine Seite, erscheint eine Kachel „Weitere ▶“.</p>
+      ${rng('overlaySec','Großanzeige nach Auswahl',0,12,1,FMT.overlaySec)}</div>
+      <div class="card"><h2>Sprachausgabe</h2>
+      ${chk('speech','Auswahl laut vorlesen')}${chk('chime','Aufmerksamkeits-Ton vor der Ansage')}${chk('speakLetters','Buchstaben beim Buchstabieren vorlesen')}
+      <label class="row"><span>Stimme</span><select data-k="voiceURI"><option value="">Automatisch (Deutsch)</option>${vs.map(v=>`<option value="${esc(v.voiceURI)}" ${S.voiceURI===v.voiceURI?'selected':''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select></label>
+      <label class="row"><span>Sätze mit türkischer Fassung</span><select data-k="lang">${LANGS.map(([v,l])=>`<option value="${v}" ${S.lang===v?'selected':''}>${l}</option>`).join('')}</select></label>
+      <label class="row"><span>Türkische Stimme</span><select data-k="voiceTrURI"><option value="">Automatisch (Türkisch)</option>${vt.map(v=>`<option value="${esc(v.voiceURI)}" ${S.voiceTrURI===v.voiceURI?'selected':''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select></label>
+      ${chk('showTr','Türkischen Text auf den Kacheln anzeigen')}
+      ${rng('rate','Sprechtempo',0.5,1.4,0.05,FMT.rate)}
+      <div class="row"><button class="btn" data-a="testVoice">🔊 Stimme testen</button><button class="btn" data-a="testTr">🇹🇷 Türkisch testen</button><button class="btn" data-a="testChime">🔔 Ton testen</button></div>
+      <p>Tipp: Bessere Stimmen lassen sich am iPad unter Einstellungen → Bedienungshilfen → Gesprochene Inhalte → Stimmen → Deutsch laden (z. B. „Anna (Erweitert)“). Sie funktionieren danach ohne Internet. Für Türkisch dort unter <b>Türkçe</b> z. B. „Yelda (Erweitert)“ laden.</p></div>`;
+  }
+  if(spTab==='inhalte'){
+    if(!edCat||!data.categories.find(c=>c.id===edCat))edCat=data.categories[0]&&data.categories[0].id;
+    const c=data.categories.find(x=>x.id===edCat);
+    h+=`<div class="card"><h2>Kategorien</h2><div class="wrap">
+      <select data-a="pickCat">${data.categories.map(x=>`<option value="${x.id}" ${x.id===edCat?'selected':''}>${esc(x.icon)} ${esc(x.name)}</option>`).join('')}</select>
+      <button class="btn" data-a="cAdd">＋ Neue Kategorie</button></div>`;
+    if(c){
+      h+=`<div class="row"><span>Name</span><input type="text" data-cf="name" value="${esc(c.name)}"></div>
+      <div class="row"><span>Symbol (Emoji)</span><input type="text" data-cf="icon" value="${esc(c.icon)}" style="min-width:80px;width:100px;font-size:26px"></div>
+      <div class="row"><span>Farbe</span><input type="color" data-cf="color" value="${esc(c.color||'#ffffff')}" style="width:70px;height:44px;border:0"></div>
+      <div class="row wrap"><button class="btn sm" data-a="cUp">↑ nach vorne</button><button class="btn sm" data-a="cDown">↓ nach hinten</button><button class="btn sm danger" data-a="cDel">🗑 Kategorie löschen</button></div></div>`;
+      if(c.type==='alphabet'){h+=`<div class="card"><p>Die Buchstabentafel hat feste Kacheln (A–Z, Ä, Ö, Ü, ß, Leerzeichen, Löschen, Vorlesen).</p></div>`;}
+      else{
+        h+=`<div class="card"><h2>Kacheln in „${esc(c.name)}“ (${c.tiles.length})</h2><div class="wrap"><button class="btn primary" data-a="tAdd">＋ Neue Kachel</button></div><div class="tlist">`;
+        c.tiles.forEach((ti,i)=>{
+          h+=`<div class="titem">${ti.img?`<img class="ti" src="${ti.img}" alt="">`:`<div class="ti">${esc(ti.icon)}</div>`}
+          <div class="tt"><b>${i+1}. ${esc(ti.label)}</b><small>🔊 ${esc(ti.say)}${ti.tr?' · 🇹🇷 '+esc(ti.tr):''}</small></div>
+          <button class="btn sm" data-a="tEdit" data-id="${ti.id}">✏️</button><button class="btn sm" data-a="tUp" data-id="${ti.id}">↑</button>
+          <button class="btn sm" data-a="tDown" data-id="${ti.id}">↓</button><button class="btn sm danger" data-a="tDel" data-id="${ti.id}">🗑</button></div>`;
+        });
+        h+=`</div><p>Die Reihenfolge bestimmt die Position im Raster. Wichtige Kacheln nach oben schieben.</p></div>`;
+      }
+    }else h+=`</div>`;
+  }
+  if(spTab==='verlauf'){
+    h+=`<div class="card"><h2>Zuletzt gesagt</h2><div class="wrap"><button class="btn danger" data-a="histClear">Verlauf löschen</button></div>`;
+    if(!hist.length)h+=`<p>Noch keine Einträge.</p>`;
+    hist.slice(0,100).forEach(x=>{const d=new Date(x.t);h+=`<div class="hist"><time>${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})} ${d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</time><span>${esc(x.text)}</span></div>`;});
+    h+=`</div>`;
+  }
+  if(spTab==='sicherung'){
+    h+=`<div class="card"><h2>Sicherung</h2><p>Alle Kacheln, Fotos und Einstellungen werden nur auf diesem iPad gespeichert. Wenn Safari-Daten gelöscht werden, sind sie weg – deshalb ab und zu sichern.</p>
+      <div class="wrap"><button class="btn primary" data-a="exp">📋 Sicherung erzeugen</button><button class="btn" data-a="copy">In Zwischenablage kopieren</button></div>
+      <p>Zum Sichern: „Sicherung erzeugen“, dann kopieren und z. B. in eine Notiz einfügen. Zum Wiederherstellen den Text unten einfügen und „Einspielen“ tippen – oder eine gesicherte Datei wählen.</p>
+      <textarea id="bk" placeholder="Hier erscheint die Sicherung bzw. hier einfügen …"></textarea>
+      <div class="wrap" style="margin-top:8px"><button class="btn" data-a="imp">⤵︎ Einspielen</button><label class="btn">Datei wählen<input type="file" accept=".json,.txt,application/json,text/plain" id="impFile" hidden></label></div></div>
+      <div class="card"><h2>Zurücksetzen</h2><p>Stellt alle Standard-Kacheln wieder her. Eigene Kacheln und Fotos gehen verloren.</p><button class="btn danger" data-a="reset">Alles zurücksetzen</button></div>`;
+  }
+  if(spTab==='hilfe'){
+    h+=`<div class="card"><h2>👁️ Augensteuerung am iPad einschalten</h2>
+      <p>Das iPad hat eine eingebaute Augensteuerung (ab iPadOS 18, neuere iPads). Sie nutzt die Frontkamera, läuft komplett auf dem Gerät und funktioniert mit dieser App:</p>
+      <p>1. iPad-Einstellungen → <b>Bedienungshilfen</b> → <b>Augensteuerung</b> einschalten und die Kalibrierung durchführen (Punkte mit den Augen verfolgen).<br>
+      2. Dort <b>Verweilsteuerung</b> eingeschaltet lassen: Ruht der Blick kurz auf einer Kachel, wird sie „angetippt“.<br>
+      3. In dieser App den Modus <b>„Antippen / iPad-Augensteuerung“</b> wählen.<br>
+      4. iPad fest und stabil montieren (Halterung am Rollstuhl), ca. 45 cm vor dem Gesicht, Kamera auf Augenhöhe. Gute, gleichmäßige Beleuchtung.</p>
+      <p>Falls die Augensteuerung zu ungenau ist: in der App weniger Spalten/Zeilen einstellen (größere Kacheln) oder den Modus <b>Scannen</b> mit einem Taster/Schalter nutzen.</p></div>
+      <div class="card"><h2>🔒 Damit nichts aus Versehen verlassen wird</h2>
+      <p><b>Geführter Zugriff</b>: Einstellungen → Bedienungshilfen → Geführter Zugriff einschalten. Dann in der App dreimal die obere Taste drücken → das iPad bleibt in der App.<br>
+      <b>Automatische Sperre</b>: Einstellungen → Anzeige &amp; Helligkeit → Automatische Sperre → „Nie“ (sonst geht der Bildschirm aus).</p></div>
+      <div class="card"><h2>📲 Als App auf den Home-Bildschirm</h2><p>In Safari auf Teilen ⬆︎ → „Zum Home-Bildschirm“. Dann startet die Sprechtafel bildschirmfüllend wie eine App.</p></div>
+      <div class="card"><h2>Tipps für den Alltag</h2><p>• Eigene Fotos (Partner, Kinder, Lieblingstasse, Rollstuhl-Knöpfe) sind oft besser verständlich als Symbole: Kacheln &amp; Fotos → ✏️ → Foto wählen.<br>
+      • Die Leiste oben (JA, NEIN, WEISS NICHT, STOPP, HILFE) ist immer sichtbar – ideal für Ja/Nein-Fragen.<br>
+      • HILFE löst einen lauten Alarm aus, der nur durch Antippen beendet wird.<br>
+      • Im Verlauf sehen Begleitpersonen, was zuletzt gesagt wurde.</p></div>`;
+  }
+  h+=`</div>`;
+  $('#settings').innerHTML=h;
+  const f=$('#impFile');if(f)f.addEventListener('change',async()=>{const file=f.files[0];if(!file)return;try{const tx=await file.text();doImport(tx);}catch(e){toast('Datei konnte nicht gelesen werden.');}});
+}
+
+function arm(btn,fn){if(btn.dataset.armed){fn();return;}btn.dataset.armed='1';const old=btn.textContent;btn.textContent='Wirklich? Nochmal tippen';btn.classList.add('armed');setTimeout(()=>{if(btn.isConnected){delete btn.dataset.armed;btn.textContent=old;btn.classList.remove('armed');}},3500);}
+function curEd(){return data.categories.find(c=>c.id===edCat);}
+function saveData(){store('data',data);}
+function move(arr,i,d){const j=i+d;if(j<0||j>=arr.length)return;[arr[i],arr[j]]=[arr[j],arr[i]];}
+function backupText(){return JSON.stringify({app:'sprechtafel',v:1,data,settings:S});}
+function doImport(tx){
+  try{const o=JSON.parse(tx);const d=o.data||o;if(!d||!Array.isArray(d.categories))throw 0;
+    data=d;if(o.settings)S=Object.assign({},DEF_S,o.settings);saveData();store('settings',S);edCat=null;renderSettings();toast('Sicherung eingespielt ✔︎');
+  }catch(e){toast('Das ist keine gültige Sicherung.');}
+}
+
+$('#settings').addEventListener('input',e=>{
+  const k=e.target.dataset.k;if(!k)return;
+  if(e.target.type==='checkbox')S[k]=e.target.checked;
+  else if(e.target.type==='range'){S[k]=+e.target.value;const o=$(`[data-o="${k}"]`);if(o)o.textContent=FMT[k](S[k]);}
+  else S[k]=e.target.value;
+  store('settings',S);
+  if(k==='mode')renderSettings();
+  if(k==='voiceURI'||k==='voiceTrURI')pickVoice();
+});
+$('#settings').addEventListener('change',e=>{
+  const cf=e.target.dataset.cf;
+  if(cf){const c=curEd();if(!c)return;c[cf]=e.target.value;saveData();if(cf!=='color')renderSettings();}
+  if(e.target.dataset.a==='pickCat'){edCat=e.target.value;renderSettings();}
+});
+$('#settings').addEventListener('click',e=>{
+  const tb=e.target.closest('[data-tab]');if(tb){spTab=tb.dataset.tab;renderSettings();return;}
+  const b=e.target.closest('[data-a]');if(!b||b.tagName==='SELECT')return;
+  const a=b.dataset.a,id=b.dataset.id,c=curEd();
+  const ti=c&&id?c.tiles.findIndex(x=>x.id===id):-1;
+  switch(a){
+    case 'close':closeSettings();break;
+    case 'testVoice':pickVoice();speak('Hallo, so klingt meine Stimme.',true);break;
+    case 'testTr':pickVoice();speakParts([{text:'Merhaba, sesim böyle.',lang:'tr'}],true);if(!voiceTr)toast('Keine türkische Stimme gefunden – bitte am iPad laden (siehe Hinweis).');break;
+    case 'testChime':ac();chime();break;
+    case 'cAdd':{const n={id:uid(),name:'Neue Kategorie',icon:'⭐',color:'#f5f5f5',type:'tiles',tiles:[]};data.categories.push(n);edCat=n.id;saveData();renderSettings();break;}
+    case 'cUp':case 'cDown':{const i=data.categories.indexOf(c);move(data.categories,i,a==='cUp'?-1:1);saveData();renderSettings();break;}
+    case 'cDel':arm(b,()=>{data.categories=data.categories.filter(x=>x!==c);if(c.id==='alltag'){data.removed=(data.removed||[]).concat('alltag');}edCat=null;if(curCat===c.id)curCat=null;saveData();renderSettings();});break;
+    case 'tAdd':openEdit(null);break;
+    case 'tEdit':openEdit(c.tiles[ti]);break;
+    case 'tUp':case 'tDown':move(c.tiles,ti,a==='tUp'?-1:1);saveData();renderSettings();break;
+    case 'tDel':arm(b,()=>{c.tiles.splice(ti,1);saveData();renderSettings();});break;
+    case 'histClear':arm(b,()=>{hist=[];store('history',hist);renderSettings();});break;
+    case 'exp':$('#bk').value=backupText();toast('Sicherung erzeugt – jetzt kopieren.');break;
+    case 'copy':{const tx=$('#bk').value||backupText();$('#bk').value=tx;
+      (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(tx):Promise.reject()).then(()=>toast('In die Zwischenablage kopiert ✔︎'),()=>{const ta=$('#bk');ta.focus();ta.select();toast('Text markiert – bitte über „Kopieren“ kopieren.');});break;}
+    case 'imp':doImport($('#bk').value);break;
+    case 'reset':arm(b,()=>{data=defaultData();S=Object.assign({},DEF_S);saveData();store('settings',S);edCat=null;curCat=null;renderSettings();toast('Zurückgesetzt.');});break;
+  }
+});
+
+/* ---------- Kachel-Editor ---------- */
+let edImg=null;
+function openEdit(tile){
+  editTile=tile;edImg=tile?tile.img:null;
+  const box=$('#edit .box');
+  box.innerHTML=`<h2 style="margin:0 0 6px">${tile?'Kachel bearbeiten':'Neue Kachel'}</h2>
+    <div class="prev"><div class="pv" id="pv"></div><div class="wrap">
+      <label class="btn">📷 Foto wählen<input type="file" accept="image/*" id="imgIn" hidden></label>
+      <button class="btn danger" id="imgDel">Foto entfernen</button></div></div>
+    <label class="f">Beschriftung auf der Kachel<input type="text" id="eLabel" value="${esc(tile?tile.label:'')}" placeholder="z. B. Rücken hoch"></label>
+    <label class="f">Das wird vorgelesen<input type="text" id="eSay" value="${esc(tile?tile.say:'')}" placeholder="z. B. Bitte die Rückenlehne hoch."></label>
+    <label class="f">Türkisch (optional)<input type="text" id="eTr" value="${esc(tile&&tile.tr?tile.tr:'')}" placeholder="z. B. Susadım."></label>
+    <label class="f">Symbol (Emoji, wenn kein Foto)<input type="text" id="eIcon" value="${esc(tile?tile.icon:'⭐')}" style="font-size:28px;width:130px;min-width:0"></label>
+    <div class="wrap" style="justify-content:flex-end;margin-top:14px"><button class="btn" id="eCancel">Abbrechen</button><button class="btn primary" id="eSave">Speichern</button></div>`;
+  const upd=()=>{const pv=$('#pv');pv.innerHTML='';if(edImg){const im=document.createElement('img');im.src=edImg;pv.appendChild(im);}else pv.textContent=$('#eIcon').value||'⭐';};
+  upd();
+  $('#eIcon').addEventListener('input',upd);
+  $('#imgIn').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{edImg=await readImg(f);upd();}catch(err){toast('Foto konnte nicht geladen werden.');}});
+  $('#imgDel').addEventListener('click',()=>{edImg=null;upd();});
+  $('#eCancel').addEventListener('click',()=>$('#edit').classList.remove('open'));
+  $('#eSave').addEventListener('click',()=>{
+    const c=curEd();if(!c)return;
+    const label=$('#eLabel').value.trim();if(!label){toast('Bitte eine Beschriftung eingeben.');return;}
+    const say=$('#eSay').value.trim()||label,icon=$('#eIcon').value.trim()||'⭐',tr=$('#eTr').value.trim();
+    if(editTile){Object.assign(editTile,{label,say,tr,icon,img:edImg});}else c.tiles.push({id:uid(),label,say,tr,icon,img:edImg});
+    if(store('data',data)){$('#edit').classList.remove('open');renderSettings();}
+  });
+  $('#edit').classList.add('open');
+}
+function readImg(file){return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const m=400,s=Math.min(1,m/Math.max(im.width,im.height));
+  const cv=document.createElement('canvas');cv.width=Math.round(im.width*s);cv.height=Math.round(im.height*s);const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);x.drawImage(im,0,0,cv.width,cv.height);res(cv.toDataURL('image/jpeg',.82));};im.onerror=rej;im.src=fr.result;};fr.onerror=rej;fr.readAsDataURL(file);});}
+
+/* ---------- Offline-Betrieb ---------- */
+try{if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
+/* ---------- Los geht's ---------- */
+renderQuick();render();
+})();
+</script>
+</body>
+</html>
