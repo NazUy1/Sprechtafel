@@ -1,0 +1,2 @@
+# Sprechtafel
+Für ALS Patienten
